@@ -104,7 +104,7 @@ class ScoreEngine(MinimalEngine):
             # if we are at terminal node,return cached or raw score
             return self.cached_score(board)
 
-        # recursively reason •bout best move
+        # recursively reason about best move
 
         moves = list(board.legal_moves)
         best_move = None
