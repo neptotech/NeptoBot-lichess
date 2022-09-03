@@ -83,8 +83,47 @@ class ScoreEngine(MinimalEngine):
             children.append((sort_score, move))
         return children
 
+    def loud_moves_only(self, board, moves):
+        """
+        return scored list of all moves to search over
+        """
+
+        children = []
+
+        was_check = board.is_check()
+
+        # generate children positions from legal moves
+        for move in moves:
+
+            is_capture = board.is_capture(move)
+
+            # check if move is a capture or check
+            board.push(move)  # apply the current candidate move
+
+            if was_check or board.is_check() or is_capture:
+                sort_score = self.cached_score(board)
+                children.append((sort_score, move))
+
+            board.pop()  # undo the candidate move
+
+        # if children:
+        #     print(board.fen())
+        #     print("loud moves: {}".format(len(children)))
+
+        return children
+
+    def quiescence_search(self, board):
+
+        # print("Starting quietpos search")
+
+        # todo: reuse the current max-depth - for now
+        return self.negamax_score(board, curr_depth=1, deadline=None,
+                                  generate_children=self.loud_moves_only,
+                                  evaluation_function=self.cached_score)
+
     def negamax_score(self, board, opponent_best=INFINITY, my_best=-INFINITY,
-                      curr_depth=0, deadline=None, generate_children=get_all_moves):
+                      curr_depth=0, max_depth=4, deadline=None, generate_children=get_all_moves,
+                      evaluation_function=material_count):
         global cache_hits, num_pruned, positions
 
         positions += 1
@@ -100,9 +139,9 @@ class ScoreEngine(MinimalEngine):
             else:
                 return 10000 / curr_depth  # prefer shallower checkmates
 
-        if curr_depth == self.max_depth:
+        if curr_depth == max_depth:
             # if we are at terminal node,return cached or raw score
-            return self.cached_score(board)
+            return evaluation_function(board)
 
         # recursively reason about best move
 
@@ -111,6 +150,9 @@ class ScoreEngine(MinimalEngine):
         best_score = -INFINITY
 
         children = generate_children(board, moves)
+
+        if len(children) == 0:
+            return evaluation_function(board)
 
         for _, move in sorted(children, key=lambda x: x[0], reverse=True):
 
@@ -127,12 +169,12 @@ class ScoreEngine(MinimalEngine):
                     if key in self.known_positions else (0, 0)
 
                 # depth of score estimate if we compute it
-                new_depth = self.max_depth - curr_depth
+                new_depth = max_depth - curr_depth
 
                 # if we could get a deeper estimate than what is in the cache
                 if new_depth > cached_depth:
                     score = self.negamax_score(board, -my_best, -opponent_best, curr_depth + 1,
-                                         deadline, generate_children)
+                                               max_depth, deadline, generate_children, evaluation_function)
 
                     self.known_positions[key] = (score, new_depth)
                 else:
@@ -181,8 +223,10 @@ class ScoreEngine(MinimalEngine):
                 new_board = board.copy()
                 new_board.push(move)
 
-                score = self.negamax_score(new_board, curr_depth=1, deadline=deadline,
-                                           generate_children=self.get_all_moves)
+                score = self.negamax_score(new_board, curr_depth=1, max_depth=depth,
+                                           deadline=deadline,
+                                           generate_children=self.get_all_moves,
+                                           evaluation_function=self.quiescence_search)
 
                 if score > best_score:
                     best_moves = [move]
@@ -207,14 +251,13 @@ class ScoreEngine(MinimalEngine):
 
 
 if __name__ == "__main__":
-    board = chess.Board('8/5Qpk/B4bnp/8/3r4/PR4PK/1P3P1P/6r1 b - - 2 31')
+    # board = chess.Board('8/5Qpk/B4bnp/8/3r4/PR4PK/1P3P1P/6r1 b - - 2 31')
     # board = chess.Board('3rk3/1p2qp2/2p2n2/1B3bp1/1b1Qp3/8/PPPP1PP1/RNB1K1N1 w Q - 0 23')
-    # board = chess.Board('')')
+    board = chess.Board()
     # # obvious mate for white
     # board = chess.Board('r3kbnr/pppppppp/8/8/8/8/PPPQPPPP/1NBRKBNR w Kkq - 0 1')
     # # obvious mate for black
     # board = chess.Board('8/8/8/Q4q2/8/8/7r/2K5 b - - 0 1')
-
 
     # todo: refactor to keep stats without global variables
     cache_hits = 0
@@ -224,7 +267,7 @@ if __name__ == "__main__":
     engine = ScoreEngine(None, None, sys.stderr)
 
     start_time = time.time()
-    move = engine.search(board, time_limit=240000, ponder=False)
+    move = engine.search(board, time_limit=24000000, ponder=False)
     print("Found move in {} seconds".format(time.time() - start_time))
 
     print("Cache hits: {}. Prunes: {}. Positions: {}.".format(cache_hits, num_pruned, positions))
