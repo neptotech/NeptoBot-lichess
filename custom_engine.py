@@ -33,6 +33,19 @@ def material_count(new_board):
     return material_difference
 
 
+def tiebreakers(board):
+    # count tiebreakers in the new position for player who just moved
+
+    # number of legal moves for previous player
+    board.push(chess.Move.null())
+    moves = len(list(board.legal_moves))
+    board.pop()
+    opponent_moves = len(list(board.legal_moves))
+
+    return moves - opponent_moves
+
+
+
 num_pruned = 0
 cache_hits = 0
 positions = 0
@@ -40,7 +53,7 @@ positions = 0
 
 class ScoreEngine(MinimalEngine):
 
-    def __init__(self, *args, name=None, max_depth=4):
+    def __init__(self, *args, name=None, max_depth=6):
         super().__init__(*args)
         self.name = name
         self.known_positions = {}
@@ -57,7 +70,7 @@ class ScoreEngine(MinimalEngine):
         if key in self.known_positions:
             score, _ = self.known_positions[key]
             return score
-        return material_count(new_board)
+        return material_count(new_board) + 0.0001 * tiebreakers(new_board)
 
     def store_position(self, board):
         """
@@ -116,11 +129,16 @@ class ScoreEngine(MinimalEngine):
         return children
 
     def quiescence_search(self, board):
-        # todo: for now, this will re-use the current max_depth
-        return self.negamax_score(board, curr_depth=1, deadline=None,
-                                  generate_children=self.loud_moves_only,
-                                  evaluation_function=self.cached_score,
-                                  caching=False, early_stop=True, max_depth=4)
+        key = board._transposition_key()
+        if key in self.known_positions:
+            score, _ = self.known_positions[key]
+        else:
+            score = self.negamax_score(board, curr_depth=1, deadline=time.time() + 1,
+                                       generate_children=self.loud_moves_only,
+                                       evaluation_function=self.cached_score,
+                                       caching=False, early_stop=True, max_depth=8)
+            self.known_positions[key] = (score, 0)
+        return score
 
     def negamax_score(self, board, opponent_best=INFINITY, my_best=-INFINITY,
                       curr_depth=0, max_depth=4, deadline=None, generate_children=get_all_moves,
@@ -131,7 +149,6 @@ class ScoreEngine(MinimalEngine):
         positions += 1
 
         turn = board.turn
-
 
         # with claim_draw=False, outcome will not know about repetition, but we handle this elsewhere
         outcome = board.outcome(claim_draw=False)
@@ -159,7 +176,6 @@ class ScoreEngine(MinimalEngine):
 
         if len(children) == 0:
             # this should only happen with quiescence search
-            # print("\n len {} \n".format(evaluation_function(board)), board.fen())
             return evaluation_function(board)
 
         for _, move in sorted(children, key=lambda x: x[0], reverse=True):
@@ -199,11 +215,6 @@ class ScoreEngine(MinimalEngine):
                 num_pruned += 1
                 return -best_score
 
-        # if best_move is None:
-
-            #print("\n early: {} \n".format(-best_score),board.fen())
-
-
         return -best_score
 
     def search(self, board, time_limit, ponder):
@@ -213,7 +224,7 @@ class ScoreEngine(MinimalEngine):
         if isinstance(time_limit, chess.engine.Limit):
             target_time = time_limit.time
         else:
-            # target 40 moves
+            # target 50 moves
             remaining = max(15, 40 - board.fullmove_number)
             target_time = time_limit / remaining / 1000
         print("Trying to make move in {} seconds".format(target_time))
@@ -239,9 +250,7 @@ class ScoreEngine(MinimalEngine):
                 score = self.negamax_score(new_board, curr_depth=1, max_depth=depth,
                                            deadline=deadline,
                                            generate_children=self.get_all_moves,
-
-                                           evaluation_function=self.quiescence_search
-                                           )
+                                           evaluation_function=self.quiescence_search)
 
                 if score > best_score:
                     best_moves = [move]
@@ -266,9 +275,9 @@ class ScoreEngine(MinimalEngine):
 
 
 if __name__ == "__main__":
-    # board = chess.Board('8/5Qpk/B4bnp/8/3r4/PR4PK/1P3P1P/6r1 b - - 2 31')
+    board = chess.Board('8/5Qpk/B4bnp/8/3r4/PR4PK/1P3P1P/6r1 b - - 2 31')
     #board = chess.Board('3rk3/1p2qp2/2p2n2/1B3bp1/1b1Qp3/8/PPPP1PP1/RNB1K1N1 w Q - 0 23')
-    board = chess.Board('rk6/8/3n2b1/8/4P3/1B6/5N2/1K6 b - - 0 1')
+    #board = chess.Board('rk6/8/3n2b1/8/4P3/1B6/5N2/1K6 b - - 0 1')
     # # obvious mate for white
     # board = chess.Board('r3kbnr/pppppppp/8/8/8/8/PPPQPPPP/1NBRKBNR w Kkq - 0 1')
     # # obvious mate for black
@@ -282,12 +291,13 @@ if __name__ == "__main__":
     engine = ScoreEngine(None, None, sys.stderr)
 
     start_time = time.time()
-    score = engine.search(board, 99999, True)
+
+    score = engine.search(board, 999999, True)
 
     print("Found move in {} seconds".format(time.time() - start_time))
 
     print("Cache hits: {}. Prunes: {}. Positions: {}.".format(cache_hits, num_pruned, positions))
 
-    print("score = {}".format(score))
+    print("Score = {}".format(score))
 
     print("\n")
