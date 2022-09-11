@@ -9,7 +9,7 @@ import json
 
 class LearningEngine(MinimalEngine):
 
-    def __init__(self, *args, name=None, weights=None, weight_file=None):
+    def __init__(self, *args, name=None, weights=None, weight_file="weights.json"):
         super().__init__(*args)
         self.name = name
 
@@ -26,7 +26,6 @@ class LearningEngine(MinimalEngine):
             descriptor = self.features(starting_board)
             self.weights = np.random.rand(descriptor.size)
 
-            self.weights = np.array([25,13.9,16.2,24.96,9.19,0,25])
         else:
             self.weights = weights
 
@@ -96,9 +95,9 @@ if __name__ == "__main__":
     engine_white.weights[0] = 1.0
 
     engine_black = LearningEngine(None, None, sys.stderr)
-
-    engine_black.weights = np.array([1., 3., 3., 5., 9., 0., 25.])
-    engine_white.weights = np.array([1., 1., 1., 1., 1., 0., 25.])
+    # TODO: ch
+    # engine_black.weights = np.array([1., 3., 3., 5., 9., 0., 25.])
+    # engine_white.weights = np.array([1., 1., 1., 1., 1., 0., 25.])
 
     wins = 0
     losses = 0
@@ -125,7 +124,7 @@ if __name__ == "__main__":
 
         outcome = board.outcome(claim_draw=True)
 
-        learning_rate = 0.001
+        learning_rate = 0.0001 # TODO: ch
 
         if outcome and outcome.winner == chess.WHITE:
             print("White wins")
@@ -164,11 +163,11 @@ if __name__ == "__main__":
         draws += 1
 
         # engine_white.weights[0] = 1
-        engine_white.weights = engine_white.weights.clip(min=0, max=25)
+        engine_white.weights = engine_white.weights.clip(min=0, max=50)# TODO: ch
 
         weights = engine_white.weights
 
-        print("P: {:.2f}, N: {:.2f}, B: {:.2f}, R: {:.2f}, Q: {:.2f}, K: {:.2f}, M: {:.2f}".format(
+        print("P: {:.3f}, N: {:.3f}, B: {:.3f}, R: {:.3f}, Q: {:.3f}, K: {:.3f}, M: {:.3f}".format(
             weights[0], weights[1], weights[2], weights[3], weights[4], weights[5],
             weights[6]))
 
