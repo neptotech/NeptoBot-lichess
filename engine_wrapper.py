@@ -201,8 +201,8 @@ class XBoardEngine(EngineWrapper):
 
 
 def getHomemadeEngine():
-    import custom_engine
-    return custom_engine.ScoreEngine
+    from LearningEngine import LearningEngine
+    return LearningEngine
 
 
     # from SearchLearningEngine import NetEngine
