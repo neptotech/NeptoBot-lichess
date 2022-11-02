@@ -6,9 +6,6 @@ PyYAML>=5.4.1
 requests>=2.25.1
 urllib3==1.26.4
 backoff==1.10.0
-tensorboard
 numpy
+tensorflow
 matplotlib
-torch
-torchvision
-MonkeyType
